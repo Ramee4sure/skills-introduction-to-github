@@ -1,0 +1,1032 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GitHub Repository Visualizer – Introduction to GitHub</title>
+  <style>
+    /* ── Reset & base ─────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      background: #0d1117;
+      color: #c9d1d9;
+      min-height: 100vh;
+    }
+    a { color: #58a6ff; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ── Header ───────────────────────────────────────────────── */
+    header {
+      background: #161b22;
+      border-bottom: 1px solid #30363d;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    header svg { flex-shrink: 0; }
+    header h1 { font-size: 18px; font-weight: 600; color: #f0f6fc; }
+    header p  { font-size: 13px; color: #8b949e; margin-top: 2px; }
+
+    /* ── Layout ───────────────────────────────────────────────── */
+    .app { display: grid; grid-template-columns: 280px 1fr; gap: 0; height: calc(100vh - 65px); }
+
+    /* ── Sidebar ──────────────────────────────────────────────── */
+    .sidebar {
+      background: #161b22;
+      border-right: 1px solid #30363d;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+    .sidebar-section { padding: 16px; border-bottom: 1px solid #21262d; }
+    .sidebar-section h2 { font-size: 12px; font-weight: 600; text-transform: uppercase;
+                          letter-spacing: .6px; color: #8b949e; margin-bottom: 10px; }
+
+    /* Branches list */
+    .branch-list { list-style: none; }
+    .branch-item {
+      display: flex; align-items: center; gap: 8px;
+      padding: 5px 8px; border-radius: 6px; cursor: pointer;
+      font-size: 13px; transition: background .15s;
+    }
+    .branch-item:hover { background: #21262d; }
+    .branch-item.active { background: #1f6feb33; color: #58a6ff; }
+    .branch-dot {
+      width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+    }
+
+    /* Contributors list */
+    .contributor-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 5px 0; font-size: 13px;
+    }
+    .avatar {
+      width: 28px; height: 28px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 600; flex-shrink: 0;
+    }
+    .contributor-name { flex: 1; }
+    .commit-count { color: #8b949e; font-size: 12px; }
+
+    /* Simulate panel */
+    .sim-form { display: flex; flex-direction: column; gap: 8px; }
+    .sim-form label { font-size: 12px; color: #8b949e; }
+    .sim-form input, .sim-form select {
+      width: 100%; padding: 7px 10px; background: #0d1117;
+      border: 1px solid #30363d; border-radius: 6px;
+      color: #c9d1d9; font-size: 13px; outline: none;
+    }
+    .sim-form input:focus, .sim-form select:focus { border-color: #58a6ff; }
+    .btn {
+      padding: 7px 14px; border-radius: 6px; border: none; cursor: pointer;
+      font-size: 13px; font-weight: 600; transition: opacity .15s;
+    }
+    .btn:hover { opacity: .85; }
+    .btn-primary   { background: #238636; color: #fff; width: 100%; }
+    .btn-secondary { background: #21262d; color: #c9d1d9; border: 1px solid #30363d; }
+    .btn-merge     { background: #8957e5; color: #fff; width: 100%; }
+    .btn-branch    { background: #1f6feb; color: #fff; width: 100%; }
+
+    /* ── Main content ─────────────────────────────────────────── */
+    .main { display: flex; flex-direction: column; overflow: hidden; }
+
+    /* Tabs */
+    .tabs {
+      display: flex; border-bottom: 1px solid #30363d;
+      background: #161b22; padding: 0 16px;
+    }
+    .tab {
+      padding: 12px 16px; font-size: 13px; font-weight: 500;
+      color: #8b949e; cursor: pointer; border-bottom: 2px solid transparent;
+      transition: color .15s, border-color .15s; user-select: none;
+    }
+    .tab:hover { color: #c9d1d9; }
+    .tab.active { color: #f0f6fc; border-bottom-color: #f78166; }
+
+    /* Tab panels */
+    .panel { display: none; flex: 1; overflow: auto; padding: 24px; }
+    .panel.active { display: flex; flex-direction: column; gap: 20px; }
+
+    /* ── Commit graph ─────────────────────────────────────────── */
+    .graph-wrap {
+      background: #161b22; border: 1px solid #30363d; border-radius: 8px; overflow: auto;
+    }
+    #commitGraph { display: block; min-width: 100%; }
+
+    /* Commit log table */
+    .commit-log {
+      background: #161b22; border: 1px solid #30363d; border-radius: 8px; overflow: hidden;
+    }
+    .commit-log table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .commit-log th {
+      text-align: left; padding: 10px 16px; background: #21262d;
+      color: #8b949e; font-weight: 600; font-size: 12px;
+      text-transform: uppercase; letter-spacing: .4px;
+    }
+    .commit-log td {
+      padding: 10px 16px; border-top: 1px solid #21262d; vertical-align: middle;
+    }
+    .commit-log tr:hover td { background: #161b22; }
+    .sha { font-family: "SFMono-Regular", Consolas, monospace; color: #58a6ff; font-size: 12px; }
+    .commit-msg { font-weight: 500; }
+    .commit-branch-tag {
+      display: inline-block; padding: 2px 8px; border-radius: 12px;
+      font-size: 11px; font-weight: 600; margin-left: 6px; vertical-align: middle;
+    }
+    .ts { color: #8b949e; font-size: 12px; }
+
+    /* ── Branch view ──────────────────────────────────────────── */
+    .branch-diagram-wrap {
+      background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+      overflow: auto; min-height: 260px;
+    }
+    #branchDiagram { display: block; min-width: 100%; }
+
+    /* ── Contributor chart ────────────────────────────────────── */
+    .contributor-chart-wrap {
+      background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+      overflow: auto;
+    }
+    #contributorChart { display: block; width: 100%; }
+
+    .activity-grid-wrap {
+      background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+      padding: 20px; overflow-x: auto;
+    }
+    .activity-grid-wrap h3 { font-size: 14px; font-weight: 600; color: #c9d1d9; margin-bottom: 16px; }
+    #activityGrid { display: flex; flex-direction: column; gap: 8px; min-width: 600px; }
+    .activity-row { display: flex; align-items: center; gap: 10px; }
+    .activity-label { width: 90px; text-align: right; font-size: 12px; color: #8b949e; flex-shrink: 0; }
+    .activity-bars { display: flex; gap: 3px; flex: 1; }
+    .activity-bar {
+      height: 18px; border-radius: 3px; min-width: 4px;
+      transition: opacity .2s; cursor: pointer;
+    }
+    .activity-bar:hover { opacity: .7; }
+
+    /* ── Info box ─────────────────────────────────────────────── */
+    .info-box {
+      background: #0d419d33; border: 1px solid #1f6feb55;
+      border-radius: 6px; padding: 12px 16px; font-size: 13px; color: #c9d1d9;
+    }
+    .info-box strong { color: #79c0ff; }
+
+    /* ── Toast ────────────────────────────────────────────────── */
+    #toast {
+      position: fixed; bottom: 24px; right: 24px;
+      background: #238636; color: #fff; padding: 10px 18px;
+      border-radius: 8px; font-size: 13px; font-weight: 600;
+      transform: translateY(60px); opacity: 0;
+      transition: transform .3s, opacity .3s; pointer-events: none; z-index: 999;
+    }
+    #toast.show { transform: translateY(0); opacity: 1; }
+
+    /* ── Responsive tweak ─────────────────────────────────────── */
+    @media (max-width: 780px) {
+      .app { grid-template-columns: 1fr; }
+      .sidebar { border-right: none; border-bottom: 1px solid #30363d; max-height: 340px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <!-- GitHub Octocat mark (MIT-licensed) -->
+  <svg width="32" height="32" viewBox="0 0 98 96" fill="#f0f6fc" xmlns="http://www.w3.org/2000/svg">
+    <path fill-rule="evenodd" clip-rule="evenodd"
+      d="M49 0C21.9 0 0 21.9 0 49c0 21.7 14 40 33.4 46.5 2.4.5 3.3-1 3.3-2.3
+         0-1.1-.1-4.9-.1-7C23 89 20.1 81 20.1 81c-2.2-5.6-5.4-7.1-5.4-7.1
+         -4.4-3 .3-3 .3-3 4.9.4 7.4 5 7.4 5 4.3 7.4 11.3 5.3 14 4
+         .4-3.1 1.7-5.3 3-6.5-10.8-1.2-22.1-5.4-22.1-24.1 0-5.3 1.9-9.7
+         5-13.1-.5-1.2-2.2-6.2.5-12.9 0 0 4.1-1.3 13.4 5a46.5 46.5 0 0 1
+         24.4 0c9.3-6.4 13.4-5 13.4-5 2.7 6.7 1 11.7.5 12.9 3.1 3.4 5
+         7.8 5 13.1 0 18.7-11.4 22.8-22.2 24 1.7 1.5 3.3 4.5 3.3 9.1
+         0 6.5-.1 11.8-.1 13.4 0 1.3.9 2.8 3.3 2.3A49 49 0 0 0 98 49C98
+         21.9 76.1 0 49 0Z"/>
+  </svg>
+  <div>
+    <h1>GitHub Repository Visualizer</h1>
+    <p>Interactive learning tool — explore commits, branches, merges, and contributors</p>
+  </div>
+</header>
+
+<div class="app">
+  <!-- ── Sidebar ────────────────────────────────────────────── -->
+  <aside class="sidebar">
+
+    <div class="sidebar-section">
+      <h2>Branches</h2>
+      <ul class="branch-list" id="branchList"></ul>
+    </div>
+
+    <div class="sidebar-section">
+      <h2>Contributors</h2>
+      <div id="contributorList"></div>
+    </div>
+
+    <div class="sidebar-section">
+      <h2>🚀 Simulate a Commit</h2>
+      <div class="sim-form">
+        <label for="simMsg">Commit message</label>
+        <input id="simMsg" type="text" placeholder="Add a new feature" maxlength="72" />
+
+        <label for="simAuthor">Author</label>
+        <select id="simAuthor"></select>
+
+        <label for="simBranch">Branch</label>
+        <select id="simBranch"></select>
+
+        <button class="btn btn-primary" onclick="simulateCommit()">Commit changes</button>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <h2>🌿 Create Branch</h2>
+      <div class="sim-form">
+        <label for="newBranchName">Branch name</label>
+        <input id="newBranchName" type="text" placeholder="feature/my-branch" maxlength="40" />
+        <label for="newBranchFrom">From branch</label>
+        <select id="newBranchFrom"></select>
+        <button class="btn btn-branch" onclick="createBranch()">Create branch</button>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <h2>🔀 Merge Branch</h2>
+      <div class="sim-form">
+        <label for="mergeFrom">Merge from</label>
+        <select id="mergeFrom"></select>
+        <label for="mergeInto">into</label>
+        <select id="mergeInto"></select>
+        <button class="btn btn-merge" onclick="mergeBranch()">Merge</button>
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- ── Main ──────────────────────────────────────────────── -->
+  <main class="main">
+    <nav class="tabs" role="tablist">
+      <div class="tab active" role="tab" onclick="showTab('graph')">📊 Commit Graph</div>
+      <div class="tab"        role="tab" onclick="showTab('branches')">🌿 Branches</div>
+      <div class="tab"        role="tab" onclick="showTab('activity')">👥 Contributors</div>
+    </nav>
+
+    <!-- Commit graph tab -->
+    <section class="panel active" id="tab-graph">
+      <div class="info-box">
+        <strong>Commit Graph</strong> — Each circle is a commit. Vertical lanes represent
+        branches. Dotted lines show merge commits. Use the sidebar to simulate new commits,
+        create branches, or merge.
+      </div>
+      <div class="graph-wrap">
+        <canvas id="commitGraph"></canvas>
+      </div>
+      <div class="commit-log">
+        <table>
+          <thead>
+            <tr>
+              <th>SHA</th>
+              <th>Message</th>
+              <th>Author</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody id="commitTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Branch diagram tab -->
+    <section class="panel" id="tab-branches">
+      <div class="info-box">
+        <strong>Branch Diagram</strong> — A horizontal timeline showing when branches were
+        created, how far ahead they are, and where merges happened.
+      </div>
+      <div class="branch-diagram-wrap">
+        <canvas id="branchDiagram"></canvas>
+      </div>
+    </section>
+
+    <!-- Contributor activity tab -->
+    <section class="panel" id="tab-activity">
+      <div class="info-box">
+        <strong>Contributor Activity</strong> — Total commits per contributor and a weekly
+        activity breakdown. Hover bars for details.
+      </div>
+      <div class="contributor-chart-wrap">
+        <canvas id="contributorChart" height="220"></canvas>
+      </div>
+      <div class="activity-grid-wrap">
+        <h3>Weekly commit activity (last 12 weeks)</h3>
+        <div id="activityGrid"></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   DATA MODEL
+   ═══════════════════════════════════════════════════════════════ */
+
+const BRANCH_COLORS = [
+  "#58a6ff", // main      – blue
+  "#3fb950", // develop   – green
+  "#d2a8ff", // feature   – purple
+  "#ffa657", // hotfix    – orange
+  "#f78166", // release   – red-orange
+  "#79c0ff", // chore     – light blue
+  "#56d364", // other     – light green
+];
+
+const CONTRIBUTORS = [
+  { name: "octocat",   email: "octocat@github.com",   color: "#e8845c" },
+  { name: "monalisa",  email: "monalisa@github.com",  color: "#58a6ff" },
+  { name: "hubot",     email: "hubot@github.com",     color: "#3fb950" },
+  { name: "defunkt",   email: "defunkt@github.com",   color: "#d2a8ff" },
+];
+
+/* Branches: { id, name, from (branchId), createdAt (commit SHA), color } */
+let branches = [
+  { id: "main",    name: "main",    from: null, createdAt: null, color: BRANCH_COLORS[0] },
+  { id: "develop", name: "develop", from: "main", createdAt: null, color: BRANCH_COLORS[1] },
+];
+
+/* Commits: { sha, message, author, branch, ts, parents[], isMerge } */
+let commits = [];
+
+/* seed SHA counter */
+let shaCounter = 0;
+function nextSha() {
+  shaCounter++;
+  return shaCounter.toString(16).padStart(7, "0");
+}
+
+function relativeTime(date) {
+  const diff = Math.floor((Date.now() - date) / 1000);
+  if (diff < 60)   return `${diff}s ago`;
+  if (diff < 3600) return `${Math.floor(diff/60)}m ago`;
+  if (diff < 86400)return `${Math.floor(diff/3600)}h ago`;
+  return `${Math.floor(diff/86400)}d ago`;
+}
+
+/* Seed with initial commits */
+function seedData() {
+  const now = Date.now();
+  const day = 86400000;
+
+  // main commits
+  addCommit("Initial commit",             "octocat",  "main",    now - 14*day, []);
+  addCommit("Add README",                 "octocat",  "main",    now - 13*day, []);
+  addCommit("Add LICENSE",                "monalisa", "main",    now - 12*day, []);
+
+  // develop branched off main
+  const licenseCommit = commits.find(c => c.message === "Add LICENSE");
+  branches[1].createdAt = licenseCommit ? licenseCommit.sha : null;
+  addCommit("Start develop branch",       "hubot",    "develop", now - 11*day, licenseCommit ? [licenseCommit.sha] : []);
+  addCommit("Add feature scaffold",       "hubot",    "develop", now - 10*day, []);
+  addCommit("Write unit tests",           "defunkt",  "develop", now -  9*day, []);
+
+  // more main
+  addCommit("Fix typo in README",         "monalisa", "main",    now -  8*day, []);
+
+  // develop continues
+  addCommit("Implement core logic",       "hubot",    "develop", now -  7*day, []);
+  addCommit("Polish UI",                  "defunkt",  "develop", now -  6*day, []);
+
+  // merge develop → main
+  const typoCommit   = commits.find(c => c.branch === "main"    && c.message === "Fix typo in README");
+  const polishCommit = commits.find(c => c.branch === "develop" && c.message === "Polish UI");
+  if (typoCommit && polishCommit) {
+    addMerge("Merge develop into main",   "octocat",  "main",    now -  5*day,
+             [typoCommit.sha, polishCommit.sha]);
+  }
+
+  // post-merge main
+  addCommit("Update changelog",           "monalisa", "main",    now -  4*day, []);
+  addCommit("Bump version to 1.1.0",      "octocat",  "main",    now -  3*day, []);
+
+  // hotfix branch
+  branches.push({ id: "hotfix/login", name: "hotfix/login", from: "main",
+                  createdAt: commits[commits.length-1].sha, color: BRANCH_COLORS[3] });
+  addCommit("Fix login redirect bug",     "monalisa", "hotfix/login", now - 2*day, [commits[commits.length-1].sha]);
+  addCommit("Add regression test",        "monalisa", "hotfix/login", now - 1*day, []);
+
+  // merge hotfix → main
+  const bumpCommit   = commits.find(c => c.message === "Bump version to 1.1.0");
+  const regressionCommit = commits.find(c => c.message === "Add regression test");
+  if (bumpCommit && regressionCommit) {
+    addMerge("Merge hotfix/login into main", "octocat", "main",  now - 12*3600000,
+             [bumpCommit.sha, regressionCommit.sha]);
+  }
+}
+
+function addCommit(message, authorName, branchId, ts, parents) {
+  const prev = [...commits].reverse().find(c => c.branch === branchId);
+  const pArr = parents && parents.length ? parents : (prev ? [prev.sha] : []);
+  const commit = {
+    sha: nextSha(), message, author: authorName, branch: branchId,
+    ts: ts || Date.now(), parents: pArr, isMerge: false,
+  };
+  commits.push(commit);
+  return commit;
+}
+
+function addMerge(message, authorName, targetBranch, ts, parents) {
+  const commit = {
+    sha: nextSha(), message, author: authorName, branch: targetBranch,
+    ts: ts || Date.now(), parents: parents || [], isMerge: true,
+  };
+  commits.push(commit);
+  return commit;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   UI HELPERS
+   ═══════════════════════════════════════════════════════════════ */
+
+function showTab(name) {
+  document.querySelectorAll(".tab").forEach((t,i) => {
+    const names = ["graph","branches","activity"];
+    t.classList.toggle("active", names[i] === name);
+  });
+  document.querySelectorAll(".panel").forEach(p => {
+    p.classList.toggle("active", p.id === "tab-"+name);
+  });
+  if (name === "graph")    { renderCommitGraph(); renderCommitTable(); }
+  if (name === "branches") renderBranchDiagram();
+  if (name === "activity") { renderContributorChart(); renderActivityGrid(); }
+}
+
+function toast(msg, color="#238636") {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.style.background = color;
+  el.classList.add("show");
+  setTimeout(() => el.classList.remove("show"), 2800);
+}
+
+function branchColor(branchId) {
+  const b = branches.find(x => x.id === branchId);
+  return b ? b.color : "#8b949e";
+}
+
+function authorColor(name) {
+  const c = CONTRIBUTORS.find(x => x.name === name);
+  return c ? c.color : "#8b949e";
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SIDEBAR RENDER
+   ═══════════════════════════════════════════════════════════════ */
+
+function renderSidebar() {
+  // Branches
+  const bl = document.getElementById("branchList");
+  bl.innerHTML = branches.map(b => `
+    <li class="branch-item" title="${b.name}">
+      <span class="branch-dot" style="background:${b.color}"></span>
+      <span>${b.name}</span>
+    </li>`).join("");
+
+  // Contributors (by commit count)
+  const counts = {};
+  commits.forEach(c => { counts[c.author] = (counts[c.author]||0) + 1; });
+  const sorted = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+  document.getElementById("contributorList").innerHTML = sorted.map(([name,n])=>`
+    <div class="contributor-item">
+      <div class="avatar" style="background:${authorColor(name)}20;color:${authorColor(name)}">
+        ${name[0].toUpperCase()}
+      </div>
+      <span class="contributor-name">${name}</span>
+      <span class="commit-count">${n} commits</span>
+    </div>`).join("");
+
+  // Selects
+  fillSelect("simAuthor",    CONTRIBUTORS.map(c=>c.name));
+  fillSelect("simBranch",    branches.map(b=>b.name));
+  fillSelect("newBranchFrom",branches.map(b=>b.name));
+  fillSelect("mergeFrom",    branches.map(b=>b.name));
+  fillSelect("mergeInto",    branches.map(b=>b.name), 1);
+}
+
+function fillSelect(id, options, defaultIdx=0) {
+  const sel = document.getElementById(id);
+  if (!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = options.map(o =>
+    `<option value="${escHtml(o)}"${o===cur?" selected":""}>${escHtml(o)}</option>`
+  ).join("");
+  if (!cur) sel.selectedIndex = defaultIdx;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   COMMIT TABLE
+   ═══════════════════════════════════════════════════════════════ */
+
+function renderCommitTable() {
+  const tbody = document.getElementById("commitTableBody");
+  const sorted = [...commits].sort((a,b) => b.ts - a.ts);
+  tbody.innerHTML = sorted.map(c => {
+    const bc = branchColor(c.branch);
+    return `<tr>
+      <td><span class="sha">${c.sha}</span></td>
+      <td>
+        <span class="commit-msg">${escHtml(c.message)}</span>
+        ${c.isMerge ? `<span class="commit-branch-tag" style="background:#8957e533;color:#d2a8ff">merge</span>` : ""}
+        <span class="commit-branch-tag" style="background:${bc}22;color:${bc}">${escHtml(c.branch)}</span>
+      </td>
+      <td>
+        <div style="display:flex;align-items:center;gap:6px">
+          <div class="avatar" style="width:22px;height:22px;font-size:10px;background:${authorColor(c.author)}20;color:${authorColor(c.author)}">
+            ${c.author[0].toUpperCase()}
+          </div>
+          ${escHtml(c.author)}
+        </div>
+      </td>
+      <td class="ts">${relativeTime(c.ts)}</td>
+    </tr>`;
+  }).join("");
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   COMMIT GRAPH  (Canvas)
+   ═══════════════════════════════════════════════════════════════ */
+
+function renderCommitGraph() {
+  const canvas = document.getElementById("commitGraph");
+  const ctx = canvas.getContext("2d");
+
+  // Assign lane per branch (insertion order)
+  const laneMap = {};
+  branches.forEach((b,i) => { laneMap[b.id] = i; });
+  const lanes = branches.length;
+
+  const COL_W = 44;
+  const ROW_H = 52;
+  const PAD_X = 24;
+  const PAD_Y = 32;
+  const R = 8;
+
+  const sorted = [...commits].sort((a,b) => a.ts - b.ts);
+  const shaPos = {};  // sha → {x,y}
+
+  const W = PAD_X*2 + lanes * COL_W;
+  const H = PAD_Y*2 + sorted.length * ROW_H;
+  canvas.width  = Math.max(W, 320);
+  canvas.height = H;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Column guide lines
+  for (let l = 0; l < lanes; l++) {
+    const x = PAD_X + l * COL_W + COL_W/2;
+    ctx.strokeStyle = "#21262d";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4,4]);
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, H);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Branch label
+    const b = branches[l];
+    ctx.fillStyle = b.color;
+    ctx.font = "bold 10px 'SFMono-Regular',Consolas,monospace";
+    ctx.textAlign = "center";
+    ctx.fillText(b.name.length > 9 ? b.name.slice(0,9)+"…" : b.name, x, 18);
+  }
+
+  // Position each commit
+  sorted.forEach((c, i) => {
+    const lane = laneMap[c.branch] ?? 0;
+    const x = PAD_X + lane * COL_W + COL_W/2;
+    const y = PAD_Y + i * ROW_H;
+    shaPos[c.sha] = { x, y };
+  });
+
+  // Draw edges (parent → child)
+  sorted.forEach(c => {
+    const { x: cx, y: cy } = shaPos[c.sha];
+    c.parents.forEach(pSha => {
+      const pos = shaPos[pSha];
+      if (!pos) return;
+      ctx.strokeStyle = c.isMerge ? "#8957e5" : branchColor(c.branch);
+      ctx.lineWidth = c.isMerge ? 1.5 : 2;
+      ctx.setLineDash(c.isMerge ? [5,3] : []);
+      ctx.beginPath();
+      ctx.moveTo(pos.x, pos.y);
+      // Curved bezier for cross-lane connections
+      if (pos.x !== cx) {
+        ctx.bezierCurveTo(pos.x, (pos.y+cy)/2, cx, (pos.y+cy)/2, cx, cy);
+      } else {
+        ctx.lineTo(cx, cy);
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
+    });
+  });
+
+  // Draw commit circles
+  sorted.forEach(c => {
+    const { x, y } = shaPos[c.sha];
+    const col = branchColor(c.branch);
+
+    // Glow for merge commits
+    if (c.isMerge) {
+      ctx.shadowColor = "#8957e5";
+      ctx.shadowBlur  = 10;
+    }
+
+    ctx.fillStyle = c.isMerge ? "#8957e5" : col;
+    ctx.beginPath();
+    ctx.arc(x, y, R, 0, Math.PI*2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    // Ring
+    ctx.strokeStyle = "#0d1117";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Author initial inside
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 8px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(c.author[0].toUpperCase(), x, y);
+
+    // Commit message
+    const maxMsgW = canvas.width - x - 16;
+    const msg = c.message.length > 38 ? c.message.slice(0,37)+"…" : c.message;
+    ctx.fillStyle = "#c9d1d9";
+    ctx.font = "12px -apple-system,sans-serif";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.fillText(msg, x + R + 8, y);
+
+    // SHA
+    ctx.fillStyle = "#58a6ff";
+    ctx.font = "10px 'SFMono-Regular',Consolas,monospace";
+    ctx.fillText(c.sha, x + R + 8, y + 13);
+  });
+
+  ctx.textBaseline = "alphabetic";
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   BRANCH DIAGRAM  (Canvas)
+   ═══════════════════════════════════════════════════════════════ */
+
+function renderBranchDiagram() {
+  const canvas = document.getElementById("branchDiagram");
+  const ctx = canvas.getContext("2d");
+
+  const sorted = [...commits].sort((a,b) => a.ts - b.ts);
+  if (!sorted.length) { canvas.width = 400; canvas.height = 120; return; }
+
+  const minTs = sorted[0].ts;
+  const maxTs = sorted[sorted.length-1].ts || (sorted[0].ts + 1);
+  const PAD_X = 120;
+  const PAD_Y = 40;
+  const ROW_H = 50;
+  const W = 800;
+  const H = PAD_Y*2 + branches.length * ROW_H;
+  canvas.width  = W;
+  canvas.height = H;
+
+  ctx.clearRect(0, 0, W, H);
+
+  function tsX(ts) {
+    return PAD_X + ((ts - minTs) / Math.max(maxTs - minTs, 1)) * (W - PAD_X*2);
+  }
+
+  // Row backgrounds + labels
+  branches.forEach((b, i) => {
+    const y = PAD_Y + i * ROW_H;
+    ctx.fillStyle = i % 2 === 0 ? "#161b2280" : "#21262d40";
+    ctx.fillRect(0, y - ROW_H/2 + 4, W, ROW_H - 4);
+
+    ctx.fillStyle = b.color;
+    ctx.font = "bold 12px -apple-system,sans-serif";
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    ctx.fillText(b.name, PAD_X - 12, y);
+  });
+
+  const laneMap = {};
+  branches.forEach((b,i) => { laneMap[b.id] = i; });
+  const shaPos = {};
+
+  // Position commits
+  sorted.forEach(c => {
+    const lane = laneMap[c.branch] ?? 0;
+    const x = tsX(c.ts);
+    const y = PAD_Y + lane * ROW_H;
+    shaPos[c.sha] = { x, y, c };
+  });
+
+  // Draw timeline line per branch
+  branches.forEach((b, i) => {
+    const branchCommits = sorted.filter(c => c.branch === b.id);
+    if (!branchCommits.length) return;
+    const y = PAD_Y + i * ROW_H;
+    const xs = branchCommits.map(c => tsX(c.ts));
+    ctx.strokeStyle = b.color + "80";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(xs[0], y);
+    xs.slice(1).forEach(x => ctx.lineTo(x, y));
+    ctx.stroke();
+  });
+
+  // Draw merge arcs
+  sorted.filter(c => c.isMerge).forEach(c => {
+    const to = shaPos[c.sha];
+    c.parents.forEach(pSha => {
+      const from = shaPos[pSha];
+      if (!from || !to) return;
+      if (from.y === to.y) return;
+      ctx.strokeStyle = "#8957e5";
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([6,3]);
+      ctx.beginPath();
+      ctx.moveTo(from.x, from.y);
+      ctx.bezierCurveTo(from.x + (to.x-from.x)*0.5, from.y, to.x - (to.x-from.x)*0.3, to.y, to.x, to.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    });
+  });
+
+  // Draw circles
+  sorted.forEach(c => {
+    const { x, y } = shaPos[c.sha];
+    const col = c.isMerge ? "#8957e5" : branchColor(c.branch);
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.arc(x, y, 7, 0, Math.PI*2);
+    ctx.fill();
+    ctx.strokeStyle = "#0d1117";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // tooltip-style label on hover is hard on canvas; add static short label
+    ctx.fillStyle = "#c9d1d9";
+    ctx.font = "10px 'SFMono-Regular',monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "bottom";
+    ctx.fillText(c.sha, x, y - 9);
+  });
+
+  // Date axis
+  const dateRange = maxTs - minTs;
+  const weeks = Math.round(dateRange / (7*86400000)) || 1;
+  ctx.fillStyle = "#8b949e";
+  ctx.font = "10px sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  for (let w = 0; w <= weeks; w++) {
+    const t = minTs + (w / weeks) * dateRange;
+    const x = tsX(t);
+    const d = new Date(t);
+    ctx.fillText(`${d.getMonth()+1}/${d.getDate()}`, x, H - 20);
+    ctx.strokeStyle = "#21262d";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([2,2]);
+    ctx.beginPath();
+    ctx.moveTo(x, PAD_Y - 20);
+    ctx.lineTo(x, H - 24);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   CONTRIBUTOR CHART  (Canvas)
+   ═══════════════════════════════════════════════════════════════ */
+
+function renderContributorChart() {
+  const canvas = document.getElementById("contributorChart");
+  const ctx    = canvas.getContext("2d");
+
+  const counts = {};
+  commits.forEach(c => { counts[c.author] = (counts[c.author]||0) + 1; });
+  const authors = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+  if (!authors.length) return;
+
+  const W = canvas.offsetWidth || 600;
+  const H = 220;
+  canvas.width  = W;
+  canvas.height = H;
+  ctx.clearRect(0,0,W,H);
+
+  const PAD_L = 100, PAD_R = 24, PAD_T = 32, PAD_B = 32;
+  const maxVal = Math.max(...authors.map(a=>a[1]));
+  const barW   = Math.min(60, (W - PAD_L - PAD_R) / authors.length - 16);
+  const chartW = W - PAD_L - PAD_R;
+
+  // Grid lines
+  for (let g = 0; g <= 5; g++) {
+    const y = PAD_T + (H - PAD_T - PAD_B) * (1 - g/5);
+    const val = Math.round(maxVal * g / 5);
+    ctx.strokeStyle = "#21262d";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3,3]);
+    ctx.beginPath(); ctx.moveTo(PAD_L, y); ctx.lineTo(W-PAD_R, y); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = "#8b949e";
+    ctx.font = "10px sans-serif";
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    ctx.fillText(val, PAD_L - 8, y);
+  }
+
+  authors.forEach(([name, count], i) => {
+    const x  = PAD_L + i * (chartW / authors.length) + (chartW / authors.length - barW)/2;
+    const bH = ((count / maxVal) * (H - PAD_T - PAD_B));
+    const y  = H - PAD_B - bH;
+    const col= authorColor(name);
+
+    // Bar
+    ctx.fillStyle = col + "cc";
+    roundRect(ctx, x, y, barW, bH, 4);
+    ctx.fill();
+
+    // Value label
+    ctx.fillStyle = col;
+    ctx.font = "bold 13px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "bottom";
+    ctx.fillText(count, x + barW/2, y - 3);
+
+    // Name label
+    ctx.fillStyle = "#c9d1d9";
+    ctx.font = "11px sans-serif";
+    ctx.textBaseline = "top";
+    ctx.fillText(name, x + barW/2, H - PAD_B + 6);
+  });
+
+  // Title
+  ctx.fillStyle = "#8b949e";
+  ctx.font = "11px sans-serif";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "top";
+  ctx.fillText("Commits per contributor", PAD_L, 10);
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.lineTo(x+w-r, y);
+  ctx.quadraticCurveTo(x+w, y, x+w, y+r);
+  ctx.lineTo(x+w, y+h-r);
+  ctx.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
+  ctx.lineTo(x+r, y+h);
+  ctx.quadraticCurveTo(x, y+h, x, y+h-r);
+  ctx.lineTo(x, y+r);
+  ctx.quadraticCurveTo(x, y, x+r, y);
+  ctx.closePath();
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ACTIVITY GRID  (weekly heatmap-style bars)
+   ═══════════════════════════════════════════════════════════════ */
+
+function renderActivityGrid() {
+  const grid = document.getElementById("activityGrid");
+  const now = Date.now();
+  const WEEKS = 12;
+  const WEEK_MS = 7 * 86400000;
+
+  // collect authors in commit order
+  const authorSet = [];
+  commits.forEach(c => { if (!authorSet.includes(c.author)) authorSet.push(c.author); });
+
+  // build week buckets per author
+  const data = {};
+  authorSet.forEach(a => { data[a] = new Array(WEEKS).fill(0); });
+  commits.forEach(c => {
+    const weekIdx = Math.floor((now - c.ts) / WEEK_MS);
+    if (weekIdx >= 0 && weekIdx < WEEKS && data[c.author]) {
+      data[c.author][WEEKS - 1 - weekIdx]++;
+    }
+  });
+
+  const maxWeekCount = Math.max(1, ...Object.values(data).flat());
+
+  grid.innerHTML = authorSet.map(a => {
+    const col = authorColor(a);
+    const bars = data[a].map((n, wi) => {
+      const opacity = n === 0 ? 0.08 : 0.2 + (n/maxWeekCount)*0.8;
+      const weekLabel = new Date(now - (WEEKS-1-wi)*WEEK_MS).toLocaleDateString(undefined,{month:"short",day:"numeric"});
+      return `<div class="activity-bar"
+                   style="background:${col};opacity:${opacity};flex:1;"
+                   title="${a}: ${n} commit${n!==1?"s":""} week of ${weekLabel}">
+              </div>`;
+    }).join("");
+    return `<div class="activity-row">
+      <div class="activity-label" style="color:${col}">${a}</div>
+      <div class="activity-bars">${bars}</div>
+    </div>`;
+  }).join("");
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SIMULATE ACTIONS
+   ═══════════════════════════════════════════════════════════════ */
+
+function simulateCommit() {
+  const msg    = document.getElementById("simMsg").value.trim();
+  const author = document.getElementById("simAuthor").value;
+  const branch = document.getElementById("simBranch").value;
+  if (!msg)    { toast("Please enter a commit message.", "#cf222e"); return; }
+  if (!branch) { toast("Please select a branch.",       "#cf222e"); return; }
+
+  addCommit(msg, author, branch, Date.now(), []);
+  document.getElementById("simMsg").value = "";
+  renderAll();
+  toast(`✔ Committed "${msg.length>30?msg.slice(0,29)+"…":msg}" to ${branch}`);
+}
+
+function createBranch() {
+  const name = document.getElementById("newBranchName").value.trim()
+                       .replace(/[^a-zA-Z0-9/_.-]/g, "-");
+  const from = document.getElementById("newBranchFrom").value;
+  if (!name) { toast("Enter a branch name.", "#cf222e"); return; }
+  if (branches.find(b => b.id === name)) {
+    toast(`Branch "${name}" already exists.`, "#cf222e"); return;
+  }
+  const colorIdx = branches.length % BRANCH_COLORS.length;
+  branches.push({ id: name, name, from, createdAt: null, color: BRANCH_COLORS[colorIdx] });
+
+  // Initial commit on the new branch inheriting HEAD of source branch
+  const srcHead = [...commits].reverse().find(c => c.branch === from);
+  addCommit(`Branch off ${from}`, "octocat", name, Date.now(), srcHead ? [srcHead.sha] : []);
+
+  document.getElementById("newBranchName").value = "";
+  renderAll();
+  toast(`🌿 Created branch "${name}" from ${from}`);
+}
+
+function mergeBranch() {
+  const from   = document.getElementById("mergeFrom").value;
+  const into   = document.getElementById("mergeInto").value;
+  if (from === into) { toast("Cannot merge a branch into itself.", "#cf222e"); return; }
+
+  const srcHead  = [...commits].reverse().find(c => c.branch === from);
+  const destHead = [...commits].reverse().find(c => c.branch === into);
+  if (!srcHead)  { toast(`Branch "${from}" has no commits.`,  "#cf222e"); return; }
+  if (!destHead) { toast(`Branch "${into}" has no commits.`,  "#cf222e"); return; }
+
+  addMerge(`Merge ${from} into ${into}`, "octocat", into, Date.now(),
+           [destHead.sha, srcHead.sha]);
+  renderAll();
+  toast(`🔀 Merged "${from}" into "${into}"`, "#8957e5");
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   RENDER ALL
+   ═══════════════════════════════════════════════════════════════ */
+
+function renderAll() {
+  renderSidebar();
+  // Only re-render the active tab
+  const active = document.querySelector(".tab.active");
+  const idx = [...document.querySelectorAll(".tab")].indexOf(active);
+  if (idx === 0) { renderCommitGraph(); renderCommitTable(); }
+  if (idx === 1) renderBranchDiagram();
+  if (idx === 2) { renderContributorChart(); renderActivityGrid(); }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   UTILITIES
+   ═══════════════════════════════════════════════════════════════ */
+
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g,"&amp;")
+    .replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;");
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   INIT
+   ═══════════════════════════════════════════════════════════════ */
+
+seedData();
+renderAll();
+
+// Re-render on window resize so canvases stay sharp
+window.addEventListener("resize", () => {
+  setTimeout(renderAll, 100);
+});
+</script>
+</body>
+</html>
